@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.reader-content {
+  font-family: theme("fontFamily.serif");
+  font-size: 1.125rem;
+  line-height: 1.9;
+}
+.reader-content p {
+  margin-bottom: 1.25em;
+}

@@ -1,0 +1,387 @@
+// WordVrs shared data model.
+// One schema, one database, powering both the Writer app and the Reader app.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum BookMode {
+  NOVEL
+  POETRY
+  SCRIPT
+}
+
+enum BookStatus {
+  DRAFT
+  PUBLISHED
+  UNPUBLISHED
+}
+
+enum BookVisibility {
+  PUBLIC
+  SUBSCRIBERS_ONLY
+  PRIVATE
+}
+
+enum ChapterStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum LibraryItemType {
+  PURCHASED
+  FREE
+  WISHLIST
+}
+
+enum NotificationType {
+  NEW_FOLLOWER
+  NEW_SUBSCRIBER
+  NEW_CHAPTER
+  NEW_COMMENT
+  NEW_REVIEW
+  NEW_MESSAGE
+  BOOK_PUBLISHED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+}
+
+// One account, shared across the Writer app and the Reader app.
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  passwordHash  String
+  username      String   @unique
+  displayName   String
+  bio           String?
+  avatarUrl     String?
+  coverImageUrl String?
+  isAuthor      Boolean  @default(false)
+  theme         Theme    @default(SYSTEM)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  books                Book[]             @relation("AuthorBooks")
+  chapterVersions      ChapterVersion[]
+  followers            Follow[]           @relation("Following")
+  following            Follow[]           @relation("Follower")
+  subscriptions        Subscription[]     @relation("Subscriber")
+  subscribers          Subscription[]     @relation("SubscribedAuthor")
+  purchases            Purchase[]
+  reviews              Review[]
+  comments             Comment[]
+  notifications        Notification[]
+  libraryItems         LibraryItem[]
+  readingProgress      ReadingProgress[]
+  bookmarks            Bookmark[]
+  highlights           Highlight[]
+  writingGoals         WritingGoal[]
+  sentMessages         Message[]          @relation("SentMessages")
+  conversationsAsUserA Conversation[]     @relation("ConversationUserA")
+  conversationsAsUserB Conversation[]     @relation("ConversationUserB")
+
+  @@index([username])
+}
+
+model Book {
+  id           String         @id @default(cuid())
+  authorId     String
+  author       User           @relation("AuthorBooks", fields: [authorId], references: [id], onDelete: Cascade)
+  title        String
+  slug         String         @unique
+  description  String         @default("")
+  coverUrl     String?
+  genre        String         @default("Uncategorized")
+  tags         String[]       @default([])
+  mode         BookMode       @default(NOVEL)
+  status       BookStatus     @default(DRAFT)
+  visibility   BookVisibility @default(PRIVATE)
+  isbn         String?
+  priceCents   Int?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  publishedAt  DateTime?
+
+  chapters        Chapter[]
+  characters      Character[]
+  worldElements    WorldElement[]
+  timelineEvents  TimelineEvent[]
+  notes           Note[]
+  reviews         Review[]
+  comments        Comment[]
+  purchases       Purchase[]
+  libraryItems    LibraryItem[]
+  readingProgress ReadingProgress[]
+
+  @@index([authorId])
+  @@index([status, visibility])
+  @@index([genre])
+}
+
+model Chapter {
+  id        String        @id @default(cuid())
+  bookId    String
+  book      Book          @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title     String
+  content   String        @default("")
+  order     Int           @default(0)
+  wordCount Int           @default(0)
+  status    ChapterStatus @default(DRAFT)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  versions        ChapterVersion[]
+  comments        Comment[]
+  bookmarks       Bookmark[]
+  highlights      Highlight[]
+  readingProgress ReadingProgress[]
+
+  @@index([bookId, order])
+}
+
+model ChapterVersion {
+  id        String   @id @default(cuid())
+  chapterId String
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  content   String
+  wordCount Int      @default(0)
+  savedById String
+  savedBy   User     @relation(fields: [savedById], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([chapterId])
+}
+
+model Character {
+  id          String  @id @default(cuid())
+  bookId      String
+  book        Book    @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  name        String
+  role        String?
+  description String  @default("")
+  imageUrl    String?
+
+  @@index([bookId])
+}
+
+model WorldElement {
+  id          String @id @default(cuid())
+  bookId      String
+  book        Book   @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  name        String
+  category    String @default("Location")
+  description String @default("")
+
+  @@index([bookId])
+}
+
+model TimelineEvent {
+  id          String   @id @default(cuid())
+  bookId      String
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title       String
+  description String   @default("")
+  date        String?
+  order       Int      @default(0)
+
+  @@index([bookId, order])
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  title     String
+  content   String   @default("")
+  createdAt DateTime @default(now())
+
+  @@index([bookId])
+}
+
+model Follow {
+  followerId  String
+  follower    User     @relation("Follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("Following", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@id([followerId, followingId])
+  @@index([followingId])
+}
+
+model Subscription {
+  id         String             @id @default(cuid())
+  subscriberId String
+  subscriber User               @relation("Subscriber", fields: [subscriberId], references: [id], onDelete: Cascade)
+  authorId   String
+  author     User               @relation("SubscribedAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  tier       String             @default("Supporter")
+  priceCents Int                @default(500)
+  status     SubscriptionStatus @default(ACTIVE)
+  createdAt  DateTime           @default(now())
+
+  @@unique([subscriberId, authorId])
+  @@index([authorId])
+}
+
+model Purchase {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId     String
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  priceCents Int
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, bookId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  rating    Int
+  text      String   @default("")
+  createdAt DateTime @default(now())
+
+  @@unique([bookId, userId])
+  @@index([bookId])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapterId String?
+  chapter   Chapter? @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment? @relation("CommentReplies", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  replies   Comment[] @relation("CommentReplies")
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([bookId])
+  @@index([chapterId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  payload   Json             @default("{}")
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+}
+
+model LibraryItem {
+  id      String          @id @default(cuid())
+  userId  String
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId  String
+  book    Book            @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  type    LibraryItemType
+  addedAt DateTime        @default(now())
+
+  @@unique([userId, bookId, type])
+  @@index([userId])
+}
+
+model ReadingProgress {
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookId          String
+  book            Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  chapterId       String
+  chapter         Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  progressPercent Float    @default(0)
+  updatedAt       DateTime @updatedAt
+
+  @@id([userId, bookId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapterId String
+  chapter   Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Highlight {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chapterId   String
+  chapter     Chapter  @relation(fields: [chapterId], references: [id], onDelete: Cascade)
+  text        String
+  startOffset Int
+  endOffset   Int
+  note        String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, chapterId])
+}
+
+model WritingGoal {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyWordTarget Int   @default(500)
+  currentStreak   Int   @default(0)
+  longestStreak   Int   @default(0)
+  lastWritingDate DateTime?
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId])
+}
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userAId   String
+  userA     User      @relation("ConversationUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userBId   String
+  userB     User      @relation("ConversationUserB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  createdAt DateTime  @default(now())
+
+  @@unique([userAId, userBId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  text           String
+  read           Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}

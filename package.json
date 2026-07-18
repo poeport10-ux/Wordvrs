@@ -1,0 +1,23 @@
+{
+  "name": "wordvrs",
+  "private": true,
+  "version": "0.1.0",
+  "description": "WordVrs ecosystem monorepo - Writer app, Reader app, and shared API",
+  "scripts": {
+    "dev:api": "pnpm --filter @wordvrs/api dev",
+    "dev:writer": "pnpm --filter @wordvrs/writer dev",
+    "dev:reader": "pnpm --filter @wordvrs/reader dev",
+    "build": "pnpm -r build",
+    "build:shared": "pnpm --filter @wordvrs/shared build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
+    "prisma:generate": "pnpm --filter @wordvrs/api prisma:generate",
+    "prisma:migrate": "pnpm --filter @wordvrs/api prisma:migrate"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
