@@ -14,6 +14,8 @@ import { dashboardRouter } from "./routes/dashboard.js";
 import { searchRouter } from "./routes/search.js";
 import { messagesRouter } from "./routes/messages.js";
 import { goalsRouter } from "./routes/goals.js";
+import { readingGoalsRouter } from "./routes/readingGoals.js";
+import { eventsRouter } from "./routes/events.js";
 
 const app = express();
 
@@ -38,10 +40,14 @@ app.use("/", socialRouter);
 app.use("/library", libraryRouter);
 app.use("/notifications", notificationsRouter);
 app.use("/search", searchRouter);
+app.use("/reading-goals", readingGoalsRouter);
 
 // Writer-facing surfaces.
 app.use("/dashboard", dashboardRouter);
 app.use("/goals", goalsRouter);
+
+// Shared: author-hosted events (Q&As, live readings, virtual book tours).
+app.use("/events", eventsRouter);
 
 // Shared messaging.
 app.use("/messages", messagesRouter);

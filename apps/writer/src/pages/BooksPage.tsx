@@ -8,7 +8,7 @@ export function BooksPage() {
   const [books, setBooks] = useState<Book[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState("");
-  const [mode, setMode] = useState<"NOVEL" | "POETRY" | "SCRIPT">("NOVEL");
+  const [mode, setMode] = useState<Book["mode"]>("NOVEL");
   const navigate = useNavigate();
 
   function load() {
@@ -55,6 +55,7 @@ export function BooksPage() {
                 <option value="NOVEL">Novel</option>
                 <option value="POETRY">Poetry</option>
                 <option value="SCRIPT">Script</option>
+                <option value="INTERACTIVE">Interactive fiction</option>
               </select>
             </div>
             <Button type="submit">Create</Button>

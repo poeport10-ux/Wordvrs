@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { serializeBook, serializePublicAuthor } from "../lib/serialize.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
@@ -38,7 +39,7 @@ const createBookSchema = z.object({
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional(),
   genre: z.string().max(60).optional(),
-  mode: z.enum(["NOVEL", "POETRY", "SCRIPT"]).optional(),
+  mode: z.enum(["NOVEL", "POETRY", "SCRIPT", "INTERACTIVE"]).optional(),
 });
 
 booksRouter.post(
@@ -72,7 +73,7 @@ const updateBookSchema = z.object({
   coverUrl: z.string().url().optional().nullable(),
   genre: z.string().max(60).optional(),
   tags: z.array(z.string().max(30)).max(10).optional(),
-  mode: z.enum(["NOVEL", "POETRY", "SCRIPT"]).optional(),
+  mode: z.enum(["NOVEL", "POETRY", "SCRIPT", "INTERACTIVE"]).optional(),
   visibility: z.enum(["PUBLIC", "SUBSCRIBERS_ONLY", "PRIVATE"]).optional(),
   isbn: z.string().max(20).optional().nullable(),
   priceCents: z.number().int().min(0).max(1_000_000).optional().nullable(),
@@ -155,21 +156,42 @@ booksRouter.get(
   "/discover",
   asyncHandler(async (req, res) => {
     const { genre, q, sort } = req.query as { genre?: string; q?: string; sort?: string };
+    const where: Prisma.BookWhereInput = {
+      status: "PUBLISHED",
+      visibility: { in: ["PUBLIC", "SUBSCRIBERS_ONLY"] },
+      ...(genre ? { genre } : {}),
+      ...(q
+        ? {
+            OR: [
+              { title: { contains: q, mode: "insensitive" } },
+              { description: { contains: q, mode: "insensitive" } },
+              { tags: { has: q } },
+            ],
+          }
+        : {}),
+    };
+
+    if (sort === "trending") {
+      const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const books = await prisma.book.findMany({
+        where,
+        include: {
+          ...bookInclude,
+          purchases: { where: { createdAt: { gte: since } }, select: { id: true } },
+        },
+        take: 200,
+      });
+      const ranked = books
+        .map((b) => ({ book: b, score: b.purchases.length * 2 + b.reviews.length }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 60)
+        .map((r) => r.book);
+      const withAuthors = await Promise.all(ranked.map((b) => withAuthor(b)));
+      return res.json({ books: withAuthors });
+    }
+
     const books = await prisma.book.findMany({
-      where: {
-        status: "PUBLISHED",
-        visibility: { in: ["PUBLIC", "SUBSCRIBERS_ONLY"] },
-        ...(genre ? { genre } : {}),
-        ...(q
-          ? {
-              OR: [
-                { title: { contains: q, mode: "insensitive" } },
-                { description: { contains: q, mode: "insensitive" } },
-                { tags: { has: q } },
-              ],
-            }
-          : {}),
-      },
+      where,
       include: bookInclude,
       orderBy: sort === "newest" ? { publishedAt: "desc" } : { updatedAt: "desc" },
       take: 60,

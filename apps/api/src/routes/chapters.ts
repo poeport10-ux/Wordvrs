@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { asyncHandler } from "../middleware/errorHandler.js";
 import { optionalAuth, requireAuth } from "../middleware/auth.js";
@@ -16,6 +17,7 @@ function serializeChapter(c: {
   order: number;
   wordCount: number;
   status: string;
+  choices: unknown;
   createdAt: Date;
   updatedAt: Date;
 }) {
@@ -27,6 +29,7 @@ function serializeChapter(c: {
     order: c.order,
     wordCount: c.wordCount,
     status: c.status,
+    choices: (c.choices as { label: string; targetChapterId: string }[] | null) ?? null,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };
@@ -93,10 +96,16 @@ chaptersRouter.post(
   })
 );
 
+const choiceSchema = z.object({
+  label: z.string().min(1).max(120),
+  targetChapterId: z.string(),
+});
+
 const updateChapterSchema = z.object({
   title: z.string().min(1).max(200).optional(),
   content: z.string().optional(),
   status: z.enum(["DRAFT", "PUBLISHED"]).optional(),
+  choices: z.array(choiceSchema).max(8).nullable().optional(),
 });
 
 chaptersRouter.patch(
@@ -111,11 +120,13 @@ chaptersRouter.patch(
 
     const data = updateChapterSchema.parse(req.body);
     const wasPublished = existing.status === "PUBLISHED";
+    const { choices, ...rest } = data;
 
     const chapter = await prisma.chapter.update({
       where: { id: existing.id },
       data: {
-        ...data,
+        ...rest,
+        ...(choices !== undefined ? { choices: (choices as Prisma.InputJsonValue) ?? Prisma.JsonNull } : {}),
         ...(data.content !== undefined ? { wordCount: countWords(data.content) } : {}),
       },
     });
