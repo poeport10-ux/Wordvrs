@@ -1,7 +1,7 @@
 // Domain types shared between the Writer app, Reader app, and the API.
 // These mirror the Prisma models in apps/api/prisma/schema.prisma.
 
-export type BookMode = "NOVEL" | "POETRY" | "SCRIPT";
+export type BookMode = "NOVEL" | "POETRY" | "SCRIPT" | "INTERACTIVE";
 export type BookStatus = "DRAFT" | "PUBLISHED" | "UNPUBLISHED";
 export type BookVisibility = "PUBLIC" | "SUBSCRIBERS_ONLY" | "PRIVATE";
 export type ChapterStatus = "DRAFT" | "PUBLISHED";
@@ -13,7 +13,8 @@ export type NotificationType =
   | "NEW_COMMENT"
   | "NEW_REVIEW"
   | "NEW_MESSAGE"
-  | "BOOK_PUBLISHED";
+  | "BOOK_PUBLISHED"
+  | "NEW_EVENT";
 
 export interface User {
   id: string;
@@ -63,6 +64,11 @@ export interface Book {
   publishedAt: string | null;
 }
 
+export interface ChapterChoice {
+  label: string;
+  targetChapterId: string;
+}
+
 export interface Chapter {
   id: string;
   bookId: string;
@@ -71,6 +77,8 @@ export interface Chapter {
   order: number;
   wordCount: number;
   status: ChapterStatus;
+  // Only meaningful for Book.mode === "INTERACTIVE": branching choices to other chapters.
+  choices: ChapterChoice[] | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -165,4 +173,28 @@ export interface ReadingProgress {
 export interface AuthTokens {
   accessToken: string;
   user: User;
+}
+
+export interface ReadingGoal {
+  id: string;
+  userId: string;
+  dailyMinutesTarget: number;
+  currentStreak: number;
+  longestStreak: number;
+  lastReadingDate: string | null;
+  updatedAt: string;
+}
+
+export interface WvEvent {
+  id: string;
+  hostId: string;
+  host?: Pick<User, "id" | "username" | "displayName" | "avatarUrl">;
+  bookId: string | null;
+  title: string;
+  description: string;
+  scheduledAt: string;
+  linkUrl: string | null;
+  rsvpCount: number;
+  isAttending?: boolean;
+  createdAt: string;
 }

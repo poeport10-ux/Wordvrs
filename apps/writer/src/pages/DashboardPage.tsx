@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
-import { Card, Spinner } from "../components/ui";
+import { Badge, Card, Spinner } from "../components/ui";
 
 interface DashboardStats {
   books: number;
@@ -38,6 +38,15 @@ export function DashboardPage() {
     { label: "Followers", value: stats.followers, to: "/followers" },
     { label: "Subscribers", value: stats.subscribers, to: "/subscribers" },
   ];
+
+  const badges = [
+    { label: "First book published", earned: stats.published >= 1 },
+    { label: "Prolific writer (5 books)", earned: stats.published >= 5 },
+    { label: "7-day streak", earned: (goal?.currentStreak ?? 0) >= 7 },
+    { label: "30-day streak", earned: (goal?.currentStreak ?? 0) >= 30 },
+    { label: "100 followers", earned: stats.followers >= 100 },
+    { label: "First sale", earned: stats.revenue.totalPurchaseRevenueCents > 0 },
+  ].filter((b) => b.earned);
 
   return (
     <div className="space-y-6">
@@ -75,6 +84,19 @@ export function DashboardPage() {
           </p>
         </Card>
       </div>
+
+      {badges.length > 0 && (
+        <Card>
+          <h3 className="font-display font-semibold">Achievements</h3>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {badges.map((b) => (
+              <Badge key={b.label} tone="accent">
+                🏆 {b.label}
+              </Badge>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card>
         <h3 className="font-display font-semibold">Quick actions</h3>

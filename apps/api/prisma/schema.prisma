@@ -20,6 +20,7 @@ enum BookMode {
   NOVEL
   POETRY
   SCRIPT
+  INTERACTIVE
 }
 
 enum BookStatus {
@@ -53,6 +54,7 @@ enum NotificationType {
   NEW_REVIEW
   NEW_MESSAGE
   BOOK_PUBLISHED
+  NEW_EVENT
 }
 
 enum SubscriptionStatus {
@@ -91,9 +93,12 @@ model User {
   bookmarks            Bookmark[]
   highlights           Highlight[]
   writingGoals         WritingGoal[]
+  readingGoals         ReadingGoal[]
   sentMessages         Message[]          @relation("SentMessages")
   conversationsAsUserA Conversation[]     @relation("ConversationUserA")
   conversationsAsUserB Conversation[]     @relation("ConversationUserB")
+  events               Event[]            @relation("EventHost")
+  eventRsvps           EventRSVP[]
 
   @@index([username])
 }
@@ -127,6 +132,7 @@ model Book {
   purchases       Purchase[]
   libraryItems    LibraryItem[]
   readingProgress ReadingProgress[]
+  events          Event[]
 
   @@index([authorId])
   @@index([status, visibility])
@@ -142,6 +148,10 @@ model Chapter {
   order     Int           @default(0)
   wordCount Int           @default(0)
   status    ChapterStatus @default(DRAFT)
+  // For Book.mode = INTERACTIVE: an array of { label: string, targetChapterId: string }
+  // letting the author branch to different next chapters instead of a linear order.
+  // Null/empty means "use the normal linear order" for that chapter.
+  choices   Json?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
@@ -384,4 +394,49 @@ model Message {
   createdAt      DateTime     @default(now())
 
   @@index([conversationId])
+}
+
+// Mirrors WritingGoal but for readers, powering reading streaks on the Reader dashboard.
+model ReadingGoal {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dailyMinutesTarget Int    @default(20)
+  currentStreak   Int       @default(0)
+  longestStreak   Int       @default(0)
+  lastReadingDate DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId])
+}
+
+// Author Q&As, live readings, virtual book tours — hosted by a writer, optionally tied to one book.
+model Event {
+  id          String   @id @default(cuid())
+  hostId      String
+  host        User     @relation("EventHost", fields: [hostId], references: [id], onDelete: Cascade)
+  bookId      String?
+  book        Book?    @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  title       String
+  description String   @default("")
+  scheduledAt DateTime
+  linkUrl     String?
+  createdAt   DateTime @default(now())
+
+  rsvps EventRSVP[]
+
+  @@index([hostId])
+  @@index([scheduledAt])
+}
+
+model EventRSVP {
+  id        String   @id @default(cuid())
+  eventId   String
+  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([eventId, userId])
+  @@index([eventId])
 }

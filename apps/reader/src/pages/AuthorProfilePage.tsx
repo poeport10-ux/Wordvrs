@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import type { AuthorPublicProfile, Book } from "@wordvrs/shared";
+import type { AuthorPublicProfile, Book, WvEvent } from "@wordvrs/shared";
 import { api } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { BookCard } from "../components/BookCard";
-import { Button, EmptyState, Spinner } from "../components/ui";
+import { Badge, Button, Card, EmptyState, Spinner } from "../components/ui";
 
 export function AuthorProfilePage() {
   const params = useParams();
@@ -14,6 +14,7 @@ export function AuthorProfilePage() {
   const [author, setAuthor] = useState<AuthorPublicProfile | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [books, setBooks] = useState<Book[] | null>(null);
+  const [events, setEvents] = useState<WvEvent[] | null>(null);
 
   useEffect(() => {
     if (!username) return;
@@ -24,6 +25,7 @@ export function AuthorProfilePage() {
     api.get<{ books: Book[] }>("/books/discover").then((r) => {
       setBooks(r.books.filter((b) => b.author?.username === username));
     });
+    api.get<{ events: WvEvent[] }>("/events", { hostUsername: username }).then((r) => setEvents(r.events));
   }, [username]);
 
   async function toggleFollow() {
@@ -31,6 +33,11 @@ export function AuthorProfilePage() {
     if (isFollowing) await api.delete(`/users/${author.username}/follow`);
     else await api.post(`/users/${author.username}/follow`);
     setIsFollowing(!isFollowing);
+  }
+
+  async function rsvp(eventId: string) {
+    await api.post(`/events/${eventId}/rsvp`);
+    setEvents((prev) => prev?.map((e) => (e.id === eventId ? { ...e, isAttending: true, rsvpCount: e.rsvpCount + 1 } : e)) ?? null);
   }
 
   if (!author) return <Spinner />;
@@ -56,6 +63,26 @@ export function AuthorProfilePage() {
         )}
       </div>
       {author.bio && <p className="max-w-2xl text-sm text-muted">{author.bio}</p>}
+
+      {events && events.length > 0 && (
+        <Card className="space-y-2">
+          <h3 className="font-display font-semibold">Upcoming events</h3>
+          {events.map((ev) => (
+            <div key={ev.id} className="flex items-center justify-between rounded-lg border border-border p-3 text-sm">
+              <div>
+                <p className="font-medium">{ev.title}</p>
+                <p className="text-xs text-muted">{new Date(ev.scheduledAt).toLocaleString()}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge tone="muted">{ev.rsvpCount} going</Badge>
+                <Button variant={ev.isAttending ? "secondary" : "primary"} className="px-3 py-1 text-xs" onClick={() => rsvp(ev.id)} disabled={ev.isAttending}>
+                  {ev.isAttending ? "Going ✓" : "RSVP"}
+                </Button>
+              </div>
+            </div>
+          ))}
+        </Card>
+      )}
 
       <h2 className="font-display text-lg font-semibold">Published books</h2>
       {!books ? (
