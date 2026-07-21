@@ -58,6 +58,34 @@ Demo accounts created by the seed script:
 Both apps read `VITE_API_URL` (defaults to `http://localhost:4000`) to reach
 the shared API.
 
+## Deploying
+
+Nothing is deployed anywhere yet — this repo only defines the apps and a
+local dev setup. `render.yaml` is a [Render Blueprint](https://render.com/docs/blueprint-spec)
+that provisions the whole stack (Postgres + the API + both frontends as
+static sites) in one go:
+
+1. In the Render dashboard: **New → Blueprint**, select this repo/branch.
+   Render reads `render.yaml` and creates `wordvrs-db`, `wordvrs-api`,
+   `wordvrs-writer`, and `wordvrs-reader`.
+2. After the first deploy, Render will have assigned each service a URL
+   (e.g. `wordvrs-api.onrender.com`). Set these env vars in the dashboard
+   (they can't be known before the services exist):
+   - `wordvrs-api` → `CORS_ORIGINS` = the writer + reader URLs, comma-separated
+   - `wordvrs-writer` → `VITE_API_URL` = the api URL
+   - `wordvrs-reader` → `VITE_API_URL` = the api URL
+3. Redeploy `wordvrs-writer` and `wordvrs-reader` so the build picks up
+   `VITE_API_URL` (Vite inlines env vars at build time, not runtime).
+4. Run the seed script once against the deployed database if you want demo
+   data: point `DATABASE_URL` at the Render Postgres instance and run
+   `pnpm --filter @wordvrs/api seed` from a machine that can reach it (or a
+   Render shell).
+
+This isn't Render-specific — the same three pieces (a Postgres database, a
+long-running Node process for `apps/api`, and two static builds for
+`apps/writer`/`apps/reader`) map onto Railway, Fly.io, or a plain VPS the
+same way.
+
 ## What's implemented vs. scaffolded
 
 The core, end-to-end flows are fully functional against the real database:
