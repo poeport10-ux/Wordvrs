@@ -86,6 +86,77 @@ long-running Node process for `apps/api`, and two static builds for
 `apps/writer`/`apps/reader`) map onto Railway, Fly.io, or a plain VPS the
 same way.
 
+### Deploying to Azure
+
+Azure doesn't have a single-file blueprint like Render, so this maps to three
+separate resources plus a database, wired together by the workflows in
+`.github/workflows/deploy-{api,writer,reader}.yml`. These fix the problem the
+original placeholder Azure workflow had (it assumed npm, this repo is a pnpm
+workspace) and build each app correctly before handing it to Azure.
+
+**1. Create the Azure resources.** Requires the [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+and `az login` first:
+
+```bash
+az group create --name wordvrs-rg --location eastus
+
+# Postgres — open firewall is a demo simplification, not for production use
+az postgres flexible-server create \
+  --resource-group wordvrs-rg --name wordvrs-db --location eastus \
+  --admin-user wordvrs --admin-password '<CHOOSE_A_STRONG_PASSWORD>' \
+  --sku-name Standard_B1ms --tier Burstable --storage-size 32 --version 16 \
+  --public-access 0.0.0.0-255.255.255.255
+az postgres flexible-server db create \
+  --resource-group wordvrs-rg --server-name wordvrs-db --database-name wordvrs
+
+# API — Linux App Service, Node 20
+az appservice plan create --name wordvrs-plan --resource-group wordvrs-rg --sku B1 --is-linux
+az webapp create --resource-group wordvrs-rg --plan wordvrs-plan \
+  --name wordvrs-api --runtime "NODE:20-lts"
+az webapp config appsettings set --resource-group wordvrs-rg --name wordvrs-api --settings \
+  DATABASE_URL="postgresql://wordvrs:<PASSWORD>@wordvrs-db.postgres.database.azure.com:5432/wordvrs?sslmode=require" \
+  JWT_SECRET="$(openssl rand -hex 32)" \
+  CORS_ORIGINS="https://wordvrs-writer.azurestaticapps.net,https://wordvrs-reader.azurestaticapps.net"
+
+# Writer + Reader — Static Web Apps (free tier)
+az staticwebapp create --name wordvrs-writer --resource-group wordvrs-rg --location eastus2 --sku Free
+az staticwebapp create --name wordvrs-reader --resource-group wordvrs-rg --location eastus2 --sku Free
+```
+
+**2. Collect the secrets these workflows need**, then add them under
+**Settings → Secrets and variables → Actions** in GitHub:
+
+```bash
+# Publish profile for the API (Secret: AZURE_WEBAPP_PUBLISH_PROFILE_API)
+az webapp deployment list-publishing-profiles \
+  --resource-group wordvrs-rg --name wordvrs-api --xml
+
+# Deployment tokens for the two static sites
+az staticwebapp secrets list --name wordvrs-writer --query "properties.apiKey" -o tsv
+az staticwebapp secrets list --name wordvrs-reader --query "properties.apiKey" -o tsv
+```
+
+| Type | Name | Value |
+|---|---|---|
+| Variable | `AZURE_WEBAPP_NAME_API` | `wordvrs-api` |
+| Variable | `VITE_API_URL` | `https://wordvrs-api.azurewebsites.net` |
+| Secret | `AZURE_WEBAPP_PUBLISH_PROFILE_API` | output of the publish-profile command above |
+| Secret | `AZURE_POSTGRES_URL` | the same `postgresql://...` string used for `DATABASE_URL` above |
+| Secret | `AZURE_STATIC_WEB_APPS_API_TOKEN_WRITER` | output of the writer `staticwebapp secrets list` command |
+| Secret | `AZURE_STATIC_WEB_APPS_API_TOKEN_READER` | output of the reader `staticwebapp secrets list` command |
+
+**3. Push to `main` (or run each workflow manually from the Actions tab)** —
+`deploy-api.yml` builds the API, runs `prisma migrate deploy` against
+`AZURE_POSTGRES_URL`, and ships it; `deploy-writer.yml`/`deploy-reader.yml`
+build each frontend with `VITE_API_URL` baked in and upload it. Static Web
+App URLs default to something like `wordvrs-writer.azurestaticapps.net` —
+check the actual assigned URL in the Azure Portal, and if it differs from
+what you put in `CORS_ORIGINS` above, update that App Service setting to
+match.
+
+**4. Seed demo data (optional):** `DATABASE_URL='<the postgresql:// string>' pnpm --filter @wordvrs/api seed`
+run from anywhere that can reach the Postgres firewall you opened above.
+
 ## What's implemented vs. scaffolded
 
 The core, end-to-end flows are fully functional against the real database:

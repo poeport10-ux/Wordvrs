@@ -1,0 +1,77 @@
+name: Deploy API to Azure Web App
+
+# Builds apps/api with pnpm (the earlier npm-based template didn't understand
+# this monorepo), runs pending Prisma migrations against the production
+# database, then ships a standalone deploy folder (produced by `pnpm deploy`)
+# to an Azure Web App. The Prisma client is regenerated a second time inside
+# that deploy folder — pnpm resolves node_modules fresh from its store there,
+# which doesn't carry over the already-generated client from the checkout.
+#
+# Required repo configuration (Settings -> Secrets and variables -> Actions):
+#   Variables:
+#     AZURE_WEBAPP_NAME_API        the Web App's name, e.g. wordvrs-api
+#   Secrets:
+#     AZURE_WEBAPP_PUBLISH_PROFILE_API   from the Web App's "Get publish profile"
+#     AZURE_POSTGRES_URL                 postgresql://... connection string used to run migrations
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/api/**"
+      - "packages/shared/**"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/deploy-api.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @wordvrs/api prisma:generate
+
+      - name: Run database migrations
+        working-directory: apps/api
+        run: pnpm exec prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.AZURE_POSTGRES_URL }}
+
+      - name: Build API
+        run: pnpm --filter @wordvrs/api build
+
+      - name: Produce standalone deploy folder
+        # Not --prod: the generated Prisma client isn't carried over from the
+        # monorepo checkout (pnpm resolves node_modules fresh from its store,
+        # which only has the pristine package, not the generated output), so
+        # the "prisma" CLI needs to still be here to regenerate it below.
+        run: pnpm --filter @wordvrs/api deploy --legacy ./deploy-api
+
+      - name: Regenerate Prisma client inside the deploy folder
+        working-directory: deploy-api
+        run: ./node_modules/.bin/prisma generate
+
+      - name: Zip artifact
+        run: zip -r ../deploy-api.zip .
+        working-directory: deploy-api
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_WEBAPP_NAME_API }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_API }}
+          package: deploy-api.zip
