@@ -20,11 +20,11 @@ can do the same job (Railway, Fly.io, a VPS, Azure, etc.); swap the
 `render.yaml` blueprint for that host's equivalent if you'd rather use
 something else.
 
-I don't have credentials for any hosting provider or for the
-prophetpoe.com registrar, so the steps below are things you (or whoever
-holds those accounts) need to click through by hand. Everything on the
-repo side — Dockerfile, Vercel config, Render blueprint, CORS wiring,
-cross-app links — is already committed.
+I don't have credentials for any hosting provider or for the IONOS
+account that manages prophetpoe.com, so the steps below are things you
+(or whoever holds those accounts) need to click through by hand.
+Everything on the repo side — Dockerfile, Vercel config, Render
+blueprint, CORS wiring, cross-app links — is already committed.
 
 ## 1. Deploy the API (Render)
 
@@ -77,18 +77,48 @@ first deploy (or trigger a redeploy after adding them). Each app already
 ships a `vercel.json` with a catch-all SPA rewrite so client-side routes
 (`/discover`, `/book/:slug`, etc.) don't 404 on refresh.
 
-## 3. DNS (at your domain registrar for prophetpoe.com)
+## 3. DNS (IONOS)
 
-Vercel and Render both show the exact record to create once you add the
-domain in their dashboard (these values can change, so use what they
-display over what's written here) — typically:
+prophetpoe.com is registered/managed at IONOS. Domain-lock (the
+transfer-protection toggle IONOS shows on the domain overview page) only
+blocks moving the domain to a different registrar — it does **not** block
+editing DNS records, so you don't need to touch it for any of this.
 
-| Host                    | Type  | Target                          |
-| ------------------------ | ----- | -------------------------------- |
-| `@` (prophetpoe.com)     | A     | `76.76.21.21` (Vercel's apex IP) |
-| `www`                    | CNAME | `cname.vercel-dns.com`           |
-| `write`                  | CNAME | `cname.vercel-dns.com`           |
-| `api`                    | CNAME | `<whatever Render displays>`     |
+Where to go: log in at [ionos.com](https://www.ionos.com) → **Domains &
+SSL** → click **prophetpoe.com** → the **DNS** tab. You'll land on a table
+of records very similar to the one below. IONOS pre-populates a couple of
+its own defaults (usually an `A` record on `@` pointing at an IONOS
+parking page, sometimes a `www` CNAME) — **edit those in place** rather
+than adding duplicates; DNS won't let two records of the same type share a
+host. Leave any `MX`/`TXT` records alone if you use IONOS for email — they
+route mail, not the site.
+
+Vercel and Render both show you the exact target to use once you add the
+domain in their dashboard (Vercel in particular sometimes issues a
+slightly different apex IP than the one below) — treat what they display
+as the source of truth over this table:
+
+| Host in IONOS's "Subdomain/Host" field | Type  | Points to (Value)                | Notes |
+| --------------------------------------- | ----- | ---------------------------------- | ----- |
+| `@` (or leave blank — IONOS uses this for the bare domain) | A     | `76.76.21.21` (Vercel's apex IP)   | Root domain, `prophetpoe.com` |
+| `www`                                    | CNAME | `cname.vercel-dns.com`             | |
+| `write`                                  | CNAME | `cname.vercel-dns.com`             | |
+| `api`                                    | CNAME | `<whatever Render displays>`       | Render generates a per-service target when you add the custom domain in step 1.4 |
+
+IONOS doesn't offer ALIAS/ANAME on standard plans, so the apex has to be
+an `A` record (not a CNAME) — this is why `prophetpoe.com` and `www` use
+different record types above; that's expected, not a mistake.
+
+Save each record (IONOS applies them individually). Propagation with
+IONOS is usually fast — often minutes, sometimes up to a few hours; rarely
+the full 24–48h some registrars quote. You can check propagation with
+`dig prophetpoe.com` / `dig www.prophetpoe.com` from a terminal, or
+whatsmydns.net, before assuming something's broken.
+
+Once Vercel/Render show the domains as **Valid**/**Verified** (their
+dashboards poll DNS and flag this automatically — no action needed from
+you beyond waiting), HTTPS certificates are issued automatically by both
+platforms.
 
 ## 4. Verify end-to-end
 
