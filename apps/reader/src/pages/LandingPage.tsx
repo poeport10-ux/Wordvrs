@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui";
 
+const WRITER_URL = import.meta.env.VITE_WRITER_URL ?? "http://localhost:5173";
+
 const FEATURES = [
   ["\u{1F4D6}", "Ebook reader", "A fast, distraction-free reading experience with highlights and bookmarks."],
   ["\u{1F3A7}", "Audiobook player", "Listen on the go, pick up exactly where you left off."],
@@ -18,7 +20,10 @@ export function LandingPage() {
           <div className="h-8 w-8 rounded-full bg-secondary shadow-glow" />
           <span className="font-display text-lg font-bold">WordVrs Reader</span>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          <a href={WRITER_URL} className="text-sm text-muted hover:text-text">
+            Are you an author?
+          </a>
           <Link to="/login">
             <Button variant="ghost">Log in</Button>
           </Link>

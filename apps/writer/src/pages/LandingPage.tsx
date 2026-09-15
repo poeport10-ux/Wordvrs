@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { Button } from "../components/ui";
 
+const READER_URL = import.meta.env.VITE_READER_URL ?? "http://localhost:5174";
+
 const FEATURES = [
   ["✍️", "AI writing assistant", "Suggestions that support your voice, never replace it."],
   ["\u{1F4D6}", "Novel, poetry & script modes", "Purpose-built editors for every form."],
@@ -18,7 +20,10 @@ export function LandingPage() {
           <div className="h-8 w-8 rounded-full bg-primary shadow-glow" />
           <span className="font-display text-lg font-bold">WordVrs Writer</span>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          <a href={READER_URL} className="text-sm text-muted hover:text-text">
+            Looking to read?
+          </a>
           <Link to="/login">
             <Button variant="ghost">Log in</Button>
           </Link>

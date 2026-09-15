@@ -58,6 +58,11 @@ Demo accounts created by the seed script:
 Both apps read `VITE_API_URL` (defaults to `http://localhost:4000`) to reach
 the shared API.
 
+## Deployment
+
+See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for deploying WordVrs to
+prophetpoe.com (Reader + Writer on Vercel, API on Render).
+
 ## What's implemented vs. scaffolded
 
 The core, end-to-end flows are fully functional against the real database:
