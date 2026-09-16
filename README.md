@@ -61,7 +61,7 @@ the shared API.
 ## Deployment
 
 See [`DEPLOYMENT.md`](./DEPLOYMENT.md) for deploying WordVrs to
-prophetpoe.com (Reader + Writer on Vercel, API on Render).
+prophetpoe.com (Reader + Writer on Vercel, API on Azure).
 
 ## What's implemented vs. scaffolded
 
